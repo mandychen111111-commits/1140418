@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>會議成本計時器</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+  body {
+    background-color: #0a0a0f;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .cost-value {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    transition: color 0.3s ease;
+  }
+
+  .time-value {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+  }
+
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #334155;
+    display: inline-block;
+    margin-right: 8px;
+    transition: background 0.3s;
+  }
+
+  .status-dot.running {
+    background: #4ade80;
+    animation: pulse 1.2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+    50% { opacity: 0.5; box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+  }
+
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+</style>
+</head>
+<body class="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+
+  <div class="w-full max-w-lg flex flex-col items-center gap-8">
+
+    <!-- 標題 -->
+    <div class="text-center">
+      <h1 class="text-gray-500 text-sm tracking-widest uppercase">Meeting Cost Timer</h1>
+      <p class="text-gray-700 text-xs mt-1">時間就是金錢</p>
+    </div>
+
+    <!-- 輸入區 -->
+    <div class="w-full grid grid-cols-2 gap-4">
+      <div class="flex flex-col gap-2">
+        <label class="text-emerald-400 text-xs tracking-widest uppercase">與會人數</label>
+        <input
+          id="attendees"
+          type="number"
+          value="5"
+          min="1"
+          class="bg-gray-900 border border-gray-800 focus:border-emerald-500 outline-none rounded-lg px-4 py-3 text-gray-100 font-mono text-base w-full"
+          placeholder="人數"
+        >
+      </div>
+      <div class="flex flex-col gap-2">
+        <label class="text-emerald-400 text-xs tracking-widest uppercase">平均時薪</label>
+        <input
+          id="rate"
+          type="number"
+          value="500"
+          min="0"
+          class="bg-gray-900 border border-gray-800 focus:border-emerald-500 outline-none rounded-lg px-4 py-3 text-gray-100 font-mono text-base w-full"
+          placeholder="時薪"
+        >
+      </div>
+    </div>
+
+    <!-- 主顯示區 -->
+    <div class="w-full bg-gray-900 rounded-2xl border border-gray-800 p-8 flex flex-col items-center gap-4">
+
+      <!-- 狀態 -->
+      <div class="flex items-center gap-2">
+        <span class="status-dot" id="dot"></span>
+        <span class="text-gray-500 text-xs tracking-widest uppercase">Total Cost</span>
+      </div>
+
+      <!-- 費用數字 -->
+      <div
+        id="cost"
+        class="cost-value text-6xl md:text-7xl font-bold text-emerald-400 tracking-tight"
+      >$0.00</div>
+
+      <!-- 分隔線 -->
+      <div class="w-16 h-px bg-gray-800 my-1"></div>
+
+      <!-- 時間 -->
+      <div
+        id="elapsed"
+        class="time-value text-2xl text-slate-600 tracking-widest"
+      >00:00:00</div>
+
+    </div>
+
+    <!-- 控制按鈕 -->
+    <div class="flex gap-3 w-full">
+      <button
+        id="btnStart"
+        onclick="startTimer()"
+        class="flex-1 py-3 rounded-xl bg-emerald-950 border border-emerald-800 text-emerald-400 text-sm tracking-widest hover:bg-emerald-900 active:scale-95 transition-all"
+      >▶ 開始</button>
+
+      <button
+        id="btnPause"
+        onclick="pauseTimer()"
+        class="flex-1 py-3 rounded-xl bg-cyan-950 border border-cyan-800 text-cyan-400 text-sm tracking-widest hover:bg-cyan-900 active:scale-95 transition-all"
+      >⏸ 暫停</button>
+
+      <button
+        id="btnReset"
+        onclick="resetTimer()"
+        class="flex-1 py-3 rounded-xl bg-gray-900 border border-gray-700 text-gray-400 text-sm tracking-widest hover:bg-gray-800 active:scale-95 transition-all"
+      >↺ 重置</button>
+    </div>
+
+    <!-- 小說明 -->
+    <p class="text-gray-700 text-xs text-center">
+      公式：（人數 × 時薪）÷ 3600 × 已進行秒數
+    </p>
+
+  </div>
+
+  <script>
+    let elapsed = 0;
+    let timer = null;
+    let running = false;
+
+    const costEl = document.getElementById('cost');
+    const elapsedEl = document.getElementById('elapsed');
+    const dotEl = document.getElementById('dot');
+
+    function getAttendees() {
+      return parseFloat(document.getElementById('attendees').value) || 0;
+    }
+
+    function getRate() {
+      return parseFloat(document.getElementById('rate').value) || 0;
+    }
+
+    function formatTime(totalSeconds) {
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      return [
+        String(h).padStart(2, '0'),
+        String(m).padStart(2, '0'),
+        String(s).padStart(2, '0')
+      ].join(':');
+    }
+
+    function calcCost(secs) {
+      const n = getAttendees();
+      const r = getRate();
+      return (n * r / 3600) * secs;
+    }
+
+    function tick() {
+      elapsed++;
+      const cost = calcCost(elapsed);
+      costEl.textContent = '$' + cost.toFixed(2);
+      elapsedEl.textContent = formatTime(elapsed);
+    }
+
+    function setRunningState(on) {
+      running = on;
+      dotEl.className = 'status-dot' + (on ? ' running' : '');
+
+      if (on) {
+        costEl.classList.remove('text-slate-500');
+        costEl.classList.add('text-emerald-400');
+        elapsedEl.classList.remove('text-slate-600');
+        elapsedEl.classList.add('text-cyan-400');
+      } else {
+        elapsedEl.classList.remove('text-cyan-400');
+        elapsedEl.classList.add('text-slate-600');
+      }
+    }
+
+    function startTimer() {
+      if (running) return;
+      setRunningState(true);
+      timer = setInterval(tick, 1000);
+    }
+
+    function pauseTimer() {
+      if (!running) return;
+      clearInterval(timer);
+      setRunningState(false);
+    }
+
+    function resetTimer() {
+      clearInterval(timer);
+      elapsed = 0;
+      setRunningState(false);
+      costEl.textContent = '$0.00';
+      costEl.classList.remove('text-slate-500');
+      costEl.classList.add('text-emerald-400');
+      elapsedEl.textContent = '00:00:00';
+    }
+  </script>
+
+</body>
+</html>
